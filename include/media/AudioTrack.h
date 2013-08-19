@@ -433,7 +433,7 @@ public:
      * Returned value:
      *  AudioTrack session ID.
      */
-            int    getSessionId() const { return mSessionId; }
+            int    getSessionId() const;
 
     /* Attach track auxiliary output to specified effect. Use effectId = 0
      * to detach track from effect.

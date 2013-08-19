@@ -60,6 +60,8 @@ uint32_t    AudioTrack::channelCount() const  { return mChannelCount; }
 uint32_t    AudioTrack::frameCount() const  { return mFrameCount; }
 size_t      AudioTrack::frameSize() const { return mFrameSize; }
 status_t AudioTrack::initCheck() const { return mStatus; }
+int    AudioTrack::getSessionId() const { return mSessionId; }
+
 
 
 status_t AudioTrack::getMinFrameCount(
