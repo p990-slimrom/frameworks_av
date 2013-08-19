@@ -76,21 +76,21 @@ ifneq ($(filter caf bfam,$(TARGET_QCOM_AUDIO_VARIANT)),)
     ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
         ifeq ($(call is-chipset-in-board-platform,msm8960),true)
             LOCAL_SRC_FILES += LPAPlayerALSA.cpp TunnelPlayer.cpp
-            LOCAL_CFLAGS += -DUSE_TUNNEL_MODE -DUSE_LPA_MODE
-            LOCAL_CFLAGS += -DTUNNEL_MODE_SUPPORTS_AMRWB
+            LOCAL_CFLAGS += -DUSE_TUNNEL_MODE -DUSE_LPA_MODE -fno-strict-aliasing
+            LOCAL_CFLAGS += -DTUNNEL_MODE_SUPPORTS_AMRWB -fno-strict-aliasing
         endif
         ifeq ($(call is-chipset-in-board-platform,msm8974),true)
             # If you are using legacy mode on 8974, you will not
             # go to space today. Also, it probably is broken.
             LOCAL_SRC_FILES += LPAPlayerALSA.cpp TunnelPlayer.cpp
-            LOCAL_CFLAGS += -DUSE_TUNNEL_MODE -DUSE_LPA_MODE
+            LOCAL_CFLAGS += -DUSE_TUNNEL_MODE -DUSE_LPA_MODE -fno-strict-aliasing
         endif
         ifeq ($(call is-chipset-in-board-platform,msm8660),true)
             LOCAL_SRC_FILES += LPAPlayer.cpp
-            LOCAL_CFLAGS += -DLEGACY_LPA -DUSE_LPA_MODE
+            LOCAL_CFLAGS += -DLEGACY_LPA -DUSE_LPA_MODE -fno-strict-aliasing
         endif
         ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
-            LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
+            LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL -fno-strict-aliasing
         endif
     endif
 endif
@@ -169,10 +169,10 @@ LOCAL_SHARED_LIBRARIES += \
         libstagefright_foundation \
         libdl
 
-LOCAL_CFLAGS += -Wno-multichar
+LOCAL_CFLAGS += -Wno-multichar -fno-strict-aliasing
 
 ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT), true)
-LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT
+LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT -fno-strict-aliasing
 
 # Include native color format header path
 LOCAL_C_INCLUDES += \
@@ -182,14 +182,14 @@ LOCAL_C_INCLUDES += \
 endif
 
 ifeq ($(BOARD_USE_TI_DUCATI_H264_PROFILE), true)
-LOCAL_CFLAGS += -DUSE_TI_DUCATI_H264_PROFILE
+LOCAL_CFLAGS += -DUSE_TI_DUCATI_H264_PROFILE -fno-strict-aliasing
 endif
 
 ifdef DOLBY_UDC
-  LOCAL_CFLAGS += -DDOLBY_UDC
+  LOCAL_CFLAGS += -DDOLBY_UDC -fno-strict-aliasing
 endif #DOLBY_UDC
 ifdef DOLBY_UDC_MULTICHANNEL
-  LOCAL_CFLAGS += -DDOLBY_UDC_MULTICHANNEL
+  LOCAL_CFLAGS += -DDOLBY_UDC_MULTICHANNEL -fno-strict-aliasing
 endif #DOLBY_UDC_MULTICHANNEL
 LOCAL_MODULE:= libstagefright
 
