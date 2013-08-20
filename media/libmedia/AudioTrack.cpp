@@ -62,7 +62,10 @@ size_t      AudioTrack::frameSize() const { return mFrameSize; }
 status_t AudioTrack::initCheck() const { return mStatus; }
 int    AudioTrack::getSessionId() const { return mSessionId; }
 
-
+extern "C" int _ZNK7android10AudioTrack12getSessionIdEv();
+extern "C" int _ZN7android10AudioTrack12getSessionIdEv() {
+    return _ZNK7android10AudioTrack12getSessionIdEv();
+}
 
 status_t AudioTrack::getMinFrameCount(
         size_t* frameCount,
