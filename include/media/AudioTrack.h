@@ -199,7 +199,6 @@ public:
                                     int notificationFrames = 0,
                                     int sessionId       = 0);
 
-#ifdef LEGACY_OMX
                         // DEPRECATED
                         explicit AudioTrack( int streamType,
                                     uint32_t sampleRate  = 0,
@@ -211,7 +210,6 @@ public:
                                     void* user           = 0,
                                     int notificationFrames = 0,
                                     int sessionId        = 0);
-#endif
 
     /* Terminates the AudioTrack and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioTrack.
@@ -245,47 +243,27 @@ public:
      * an uninitialized AudioTrack produces undefined results.
      * See set() method above for possible return codes.
      */
-#ifdef LEGACY_OMX
             status_t    initCheck() const;
-#else
-            status_t    initCheck() const   { return mStatus; }
-#endif
 
     /* Returns this track's estimated latency in milliseconds.
      * This includes the latency due to AudioTrack buffer size, AudioMixer (if any)
      * and audio hardware driver.
      */
-#ifdef LEGACY_OMX
             uint32_t    latency() const;
-#else
-            uint32_t    latency() const     { return mLatency; }
-#endif
 
     /* getters, see constructors and set() */
 
-#ifdef LEGACY_OMX
             audio_stream_type_t streamType() const;
             audio_format_t format() const;
-#else
-            audio_stream_type_t streamType() const;
-            audio_format_t format() const;
-#endif
 
     /* Return frame size in bytes, which for linear PCM is channelCount * (bit depth per channel / 8).
      * channelCount is determined from channelMask, and bit depth comes from format.
      * For non-linear formats, the frame size is typically 1 byte.
      */
-#ifdef LEGACY_OMX
             uint32_t    channelCount() const;
 
             uint32_t    frameCount() const;  
             size_t      frameSize() const;  
-#else
-            uint32_t    channelCount() const { return mChannelCount; }
- 
-            uint32_t    frameCount() const  { return mFrameCount; }
-            size_t      frameSize() const   { return mFrameSize; }
-#elseif
 
     /* Return the static buffer specified in constructor or set(), or 0 for streaming mode */
             sp<IMemory> sharedBuffer() const { return mSharedBuffer; }
@@ -455,12 +433,7 @@ public:
      * Returned value:
      *  AudioTrack session ID.
      */
-
-#ifdef LEGACY_OMX
             int    getSessionId() const;
-#else
-            int    getSessionId() const { return mSessionId; }
-#endif
 
     /* Attach track auxiliary output to specified effect. Use effectId = 0
      * to detach track from effect.

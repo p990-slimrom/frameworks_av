@@ -205,12 +205,10 @@ int AudioSystem::logToLinear(float volume)
     return volume ? 100 - int(dBConvertInverse * log(volume) + 0.5) : 0;
 }
 
-#ifdef LEGACY_OMX
 extern "C" status_t _ZN7android11AudioSystem21getOutputSamplingRateEPii(uint32_t* samplingRate, audio_stream_type_t streamType)
 {
     return AudioSystem::getOutputFrameCount(samplingRate, streamType);
 }
-#endif
 
 status_t AudioSystem::getOutputSamplingRate(uint32_t* samplingRate, audio_stream_type_t streamType)
 {
@@ -254,12 +252,11 @@ status_t AudioSystem::getSamplingRate(audio_io_handle_t output,
     return NO_ERROR;
 }
 
-#ifdef LEGACY_OMX
 extern "C" status_t _ZN7android11AudioSystem19getOutputFrameCountEPii(size_t* frameCount, audio_stream_type_t streamType)
 {
     return AudioSystem::getOutputFrameCount(frameCount, streamType);
 }
-#endif
+
 
 status_t AudioSystem::getOutputFrameCount(size_t* frameCount, audio_stream_type_t streamType)
 {
@@ -609,7 +606,7 @@ audio_policy_forced_cfg_t AudioSystem::getForceUse(audio_policy_force_use_t usag
     return aps->getForceUse(usage);
 }
 
-#ifdef LEGACY_OMX
+
 extern "C" audio_io_handle_t _ZN7android11AudioSystem9getOutputE19audio_stream_type_tjjj27audio_policy_output_flags_t(audio_stream_type_t stream,
                                     uint32_t samplingRate,
                                     uint32_t format,
@@ -617,7 +614,6 @@ extern "C" audio_io_handle_t _ZN7android11AudioSystem9getOutputE19audio_stream_t
                                     audio_output_flags_t flags) {
     return AudioSystem::getOutput(stream,samplingRate,(audio_format_t) format, channels, flags);
 }
-#endif
 
 audio_io_handle_t AudioSystem::getOutput(audio_stream_type_t stream,
                                     uint32_t samplingRate,
