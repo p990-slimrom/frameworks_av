@@ -38,6 +38,7 @@
 #include "../../libstagefright/include/WVMExtractor.h"
 #include "../../libstagefright/include/HTTPBase.h"
 
+#include <ExtendedUtils.h>
 namespace android {
 
 static int64_t kLowWaterMarkUs = 2000000ll;  // 2secs
@@ -262,21 +263,46 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
         }
     }
 
+    mBitrate = totalBitrate;
+
+    return OK;
+}
+
+status_t NuPlayer::GenericSource::startSources() {
     // Start the selected A/V tracks now before we start buffering.
     // Widevine sources might re-initialize crypto when starting, if we delay
     // this to start(), all data buffered during prepare would be wasted.
     // (We don't actually start reading until start().)
-    if (mAudioTrack.mSource != NULL && mAudioTrack.mSource->start() != OK) {
-        ALOGE("failed to start audio track!");
-        return UNKNOWN_ERROR;
+    if (mAudioTrack.mSource != NULL) {
+        bool overrideSourceStart = false;
+        status_t status = false;
+        sp<MetaData> audioMeta = NULL;
+        audioMeta = mAudioTrack.mSource->getFormat();
+
+        if (ExtendedUtils::is24bitPCMOffloadEnabled()) {
+            if(ExtendedUtils::is24bitPCMOffloaded(audioMeta)) {
+                overrideSourceStart = true;
+            }
+        }
+
+        if (overrideSourceStart && audioMeta.get()) {
+            ALOGV("Override AudioTrack source with Meta");
+            status = mAudioTrack.mSource->start(audioMeta.get());
+        } else {
+            ALOGV("Do not override AudioTrack source with Meta");
+            status = mAudioTrack.mSource->start();
+        }
+
+        if (status != OK ) {
+            ALOGE("failed to start audio track!");
+            return UNKNOWN_ERROR;
+        }
     }
 
     if (mVideoTrack.mSource != NULL && mVideoTrack.mSource->start() != OK) {
         ALOGE("failed to start video track!");
         return UNKNOWN_ERROR;
     }
-
-    mBitrate = totalBitrate;
 
     return OK;
 }
@@ -423,6 +449,32 @@ void NuPlayer::GenericSource::onPrepareAsync() {
             | FLAG_CAN_SEEK_FORWARD
             | FLAG_CAN_SEEK);
 
+    if (mIsSecure) {
+        // secure decoders must be instantiated before starting widevine source
+        sp<AMessage> reply = new AMessage(kWhatSecureDecodersInstantiated, id());
+        notifyInstantiateSecureDecoders(reply);
+    } else {
+        finishPrepareAsync();
+    }
+}
+
+void NuPlayer::GenericSource::onSecureDecodersInstantiated(status_t err) {
+    if (err != OK) {
+        ALOGE("Failed to instantiate secure decoders!");
+        notifyPreparedAndCleanup(err);
+        return;
+    }
+    finishPrepareAsync();
+}
+
+void NuPlayer::GenericSource::finishPrepareAsync() {
+    status_t err = startSources();
+    if (err != OK) {
+        ALOGE("Failed to init start data source!");
+        notifyPreparedAndCleanup(err);
+        return;
+    }
+
     if (mIsStreaming) {
         mPrepareBuffering = true;
 
@@ -441,6 +493,7 @@ void NuPlayer::GenericSource::notifyPreparedAndCleanup(status_t err) {
         mDataSource.clear();
         mCachedSource.clear();
         mHttpSource.clear();
+        mBitrate = -1;
 
         cancelPollBuffering();
     }
@@ -867,6 +920,14 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
       case kWhatReadBuffer:
       {
           onReadBuffer(msg);
+          break;
+      }
+
+      case kWhatSecureDecodersInstantiated:
+      {
+          int32_t err;
+          CHECK(msg->findInt32("err", &err));
+          onSecureDecodersInstantiated(err);
           break;
       }
 
@@ -1465,13 +1526,13 @@ void NuPlayer::GenericSource::readBuffer(
     switch (trackType) {
         case MEDIA_TRACK_TYPE_VIDEO:
             track = &mVideoTrack;
-            if (mIsWidevine) {
+            if (mIsWidevine || (mHttpSource != NULL)) {
                 maxBuffers = 2;
             }
             break;
         case MEDIA_TRACK_TYPE_AUDIO:
             track = &mAudioTrack;
-            if (mIsWidevine) {
+            if (mIsWidevine || (mHttpSource != NULL)) {
                 maxBuffers = 8;
             } else {
                 maxBuffers = 64;
@@ -1535,8 +1596,8 @@ void NuPlayer::GenericSource::readBuffer(
                 track->mPackets->queueDiscontinuity( type, NULL, true /* discard */);
             }
 
-            sp<ABuffer> buffer = mediaBufferToABuffer(
-                    mbuf, trackType, seekTimeUs, actualTimeUs);
+            sp<ABuffer> buffer = mediaBufferToABuffer(mbuf, trackType, seekTimeUs,
+                numBuffers == 0 ? actualTimeUs : NULL);
             track->mPackets->queueAccessUnit(buffer);
             formatChange = false;
             seeking = false;

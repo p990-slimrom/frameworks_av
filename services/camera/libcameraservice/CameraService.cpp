@@ -752,8 +752,8 @@ status_t CameraService::connect(
 
     sp<Client> client;
     {
-        Mutex::Autolock lock(mServiceLock);
         sp<BasicClient> clientTmp;
+        Mutex::Autolock lock(mServiceLock);
         if (!canConnectUnsafe(cameraId, clientPackageName,
                               cameraClient->asBinder(),
                               /*out*/clientTmp)) {
@@ -815,8 +815,8 @@ status_t CameraService::connectLegacy(
 
     sp<Client> client;
     {
-        Mutex::Autolock lock(mServiceLock);
         sp<BasicClient> clientTmp;
+        Mutex::Autolock lock(mServiceLock);
         if (!canConnectUnsafe(cameraId, clientPackageName,
                               cameraClient->asBinder(),
                               /*out*/clientTmp)) {
@@ -1222,13 +1222,7 @@ sp<CameraService::BasicClient> CameraService::findClientUnsafe(
         // Client::~Client() -> disconnect() -> removeClientByRemote().
         client = mClient[i].promote();
 
-        // Clean up stale client entry
-        if (client == NULL) {
-            mClient[i].clear();
-            continue;
-        }
-
-        if (cameraClient == client->getRemote()) {
+        if ((client != NULL) && (cameraClient == client->getRemote())) {
             // Found our camera
             outIndex = i;
             return client;
@@ -1329,8 +1323,16 @@ void CameraService::loadSound() {
     LOG1("CameraService::loadSound ref=%d", mSoundRef);
     if (mSoundRef++) return;
 
-    mSoundPlayer[SOUND_SHUTTER] = newMediaPlayer("/system/media/audio/ui/camera_click.ogg");
-    mSoundPlayer[SOUND_RECORDING] = newMediaPlayer("/system/media/audio/ui/VideoRecord.ogg");
+    char value[PROPERTY_VALUE_MAX];
+    property_get("persist.sys.camera-sound", value, "1");
+
+    if (atoi(value)) {
+        mSoundPlayer[SOUND_SHUTTER] = newMediaPlayer("/system/media/audio/ui/camera_click.ogg");
+        mSoundPlayer[SOUND_RECORDING] = newMediaPlayer("/system/media/audio/ui/VideoRecord.ogg");
+    } else {
+        mSoundPlayer[SOUND_SHUTTER] = NULL;
+        mSoundPlayer[SOUND_RECORDING] = NULL;
+    }
 }
 
 void CameraService::releaseSound() {
@@ -1374,6 +1376,7 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
     LOG1("Client::Client E (pid %d, id %d)", callingPid, cameraId);
 
     mRemoteCallback = cameraClient;
+    mLongshotEnabled = false;
 
     cameraService->setCameraBusy(cameraId);
     cameraService->loadSound();
@@ -1408,6 +1411,7 @@ CameraService::BasicClient::BasicClient(const sp<CameraService>& cameraService,
     mServicePid = servicePid;
     mOpsActive = false;
     mDestructionStarted = false;
+    mBurstCnt = 0;
 }
 
 CameraService::BasicClient::~BasicClient() {
