@@ -4764,10 +4764,12 @@ void AudioFlinger::DirectOutputThread::cacheParameters_l()
 
 void AudioFlinger::DirectOutputThread::flushHw_l()
 {
+#ifndef ICS_AUDIO_BLOB
     if (mOutput->stream->flush != NULL) {
         mOutput->stream->flush(mOutput->stream);
     }
     mHwPaused = false;
+#endif
 }
 
 // ----------------------------------------------------------------------------
