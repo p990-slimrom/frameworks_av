@@ -468,6 +468,7 @@ ACodec::ACodec()
       mSentFormat(false),
       mIsEncoder(false),
       mUseMetadataOnEncoderOutput(false),
+      mFatalError(false),
       mShutdownInProgress(false),
       mExplicitShutdown(false),
       mEncoderDelay(0),
@@ -1047,6 +1048,7 @@ void ACodec::setNativeWindowColorFormat(OMX_COLOR_FORMATTYPE &eNativeColorFormat
     // In case of Samsung decoders, we set proper native color format for the Native Window
     if (!strcasecmp(mComponentName.c_str(), "OMX.SEC.AVC.Decoder")
         || !strcasecmp(mComponentName.c_str(), "OMX.SEC.FP.AVC.Decoder")
+        || !strcasecmp(mComponentName.c_str(), "OMX.SEC.MPEG4.Decoder")
         || !strcasecmp(mComponentName.c_str(), "OMX.Exynos.AVC.Decoder")) {
         switch (eNativeColorFormat) {
             case OMX_COLOR_FormatYUV420SemiPlanar:
@@ -1085,6 +1087,11 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
     if (mTunneled) {
         ALOGW("dequeueBufferFromNativeWindow() should not be called in tunnel"
               " video playback mode mode!");
+        return NULL;
+    }
+
+    if (mFatalError) {
+        ALOGW("not dequeuing from native window due to fatal error");
         return NULL;
     }
 
@@ -3453,7 +3460,7 @@ status_t ACodec::setupErrorCorrectionParameters() {
     }
 
     errorCorrectionType.bEnableHEC = OMX_FALSE;
-    errorCorrectionType.bEnableResync = OMX_TRUE;
+    errorCorrectionType.bEnableResync = OMX_FALSE;
     errorCorrectionType.nResynchMarkerSpacing = 0;
     errorCorrectionType.bEnableDataPartitioning = OMX_FALSE;
     errorCorrectionType.bEnableRVLC = OMX_FALSE;
@@ -3948,9 +3955,6 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     notify->setInt32("channel-count", params.nChannels);
                     notify->setInt32("sample-rate", params.nSamplingRate);
 
-                    CHECK(params.nBitPerSample == 16u ||
-                          params.nBitPerSample == 24u ||
-                          params.nBitPerSample == 32u);
                     notify->setInt32("bits-per-sample", params.nBitPerSample);
 
                     if (mChannelMaskPresent) {
@@ -4263,6 +4267,9 @@ void ACodec::signalError(OMX_ERRORTYPE error, status_t internalError) {
             ALOGW("Invalid OMX error %#x", error);
         }
     }
+
+    mFatalError = true;
+
     notify->setInt32("err", internalError);
     notify->setInt32("actionCode", ACTION_CODE_FATAL); // could translate from OMX error.
     notify->post();

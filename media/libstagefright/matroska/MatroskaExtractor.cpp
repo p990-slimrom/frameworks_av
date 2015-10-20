@@ -21,6 +21,7 @@
 #include "MatroskaExtractor.h"
 
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaBuffer.h>
@@ -245,7 +246,6 @@ MatroskaSource::MatroskaSource(
     mIsAudio = !strncasecmp("audio/", mime, 6);
 
     if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
-        mType = AVC;
 
         uint32_t dummy;
         const uint8_t *avcc;
@@ -253,10 +253,15 @@ MatroskaSource::MatroskaSource(
         CHECK(meta->findData(
                     kKeyAVCC, &dummy, (const void **)&avcc, &avccSize));
 
-        CHECK_GE(avccSize, 5u);
+        if (avccSize < 5) {
+            ALOGW("Invalid AVCC atom in track, size %d", avccSize);
+        } else {
 
-        mNALSizeLen = 1 + (avcc[4] & 3);
-        ALOGV("mNALSizeLen = %zu", mNALSizeLen);
+            mNALSizeLen = 1 + (avcc[4] & 3);
+            ALOGV("mNALSizeLen = %zu", mNALSizeLen);
+
+            mType = AVC;
+        }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC)) {
         mType = HEVC;
 
@@ -689,7 +694,12 @@ status_t MatroskaSource::read(
                     TRESPASS();
             }
 
-            if (srcOffset + mNALSizeLen + NALsize > srcSize) {
+            if (srcOffset + mNALSizeLen + NALsize <= srcOffset + mNALSizeLen) {
+                frame->release();
+                frame = NULL;
+
+                return ERROR_MALFORMED;
+            } else if (srcOffset + mNALSizeLen + NALsize > srcSize) {
                 break;
             }
 
@@ -809,7 +819,12 @@ MatroskaExtractor::MatroskaExtractor(const sp<DataSource> &source)
          info->GetWritingAppAsUTF8());
 #endif
 
-    addTracks();
+    ret = addTracks();
+    if (ret < 0) {
+        delete mSegment;
+        mSegment = NULL;
+        return;
+    }
 }
 
 MatroskaExtractor::~MatroskaExtractor() {
@@ -947,25 +962,38 @@ status_t addVorbisCodecInfo(
     size_t offset = 1;
     size_t len1 = 0;
     while (offset < codecPrivateSize && codecPrivate[offset] == 0xff) {
+        if (len1 > (SIZE_MAX - 0xff)) {
+            return ERROR_MALFORMED; // would overflow
+        }
         len1 += 0xff;
         ++offset;
     }
     if (offset >= codecPrivateSize) {
         return ERROR_MALFORMED;
     }
+    if (len1 > (SIZE_MAX - codecPrivate[offset])) {
+        return ERROR_MALFORMED; // would overflow
+    }
     len1 += codecPrivate[offset++];
 
     size_t len2 = 0;
     while (offset < codecPrivateSize && codecPrivate[offset] == 0xff) {
+        if (len2 > (SIZE_MAX - 0xff)) {
+            return ERROR_MALFORMED; // would overflow
+        }
         len2 += 0xff;
         ++offset;
     }
     if (offset >= codecPrivateSize) {
         return ERROR_MALFORMED;
     }
+    if (len2 > (SIZE_MAX - codecPrivate[offset])) {
+        return ERROR_MALFORMED; // would overflow
+    }
     len2 += codecPrivate[offset++];
 
-    if (codecPrivateSize < offset + len1 + len2) {
+    if (len1 > SIZE_MAX - len2 || offset > SIZE_MAX - (len1 + len2) ||
+            codecPrivateSize < offset + len1 + len2) {
         return ERROR_MALFORMED;
     }
 
@@ -991,7 +1019,7 @@ status_t addVorbisCodecInfo(
     return OK;
 }
 
-void MatroskaExtractor::addTracks() {
+int MatroskaExtractor::addTracks() {
     const mkvparser::Tracks *tracks = mSegment->GetTracks();
 
     for (size_t index = 0; index < tracks->GetTracksCount(); ++index) {
@@ -1106,7 +1134,9 @@ void MatroskaExtractor::addTracks() {
 
                 if (!strcmp("A_AAC", codecID)) {
                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AAC);
-                    CHECK(codecPrivateSize >= 2);
+                    if (codecPrivateSize < 2) {
+                        return -1;
+                    }
 
                     addESDSFromCodecPrivate(
                             meta, true, codecPrivate, codecPrivateSize);
@@ -1162,6 +1192,7 @@ void MatroskaExtractor::addTracks() {
         trackInfo->mMeta = meta;
         trackInfo->mExtractor = this;
     }
+    return 0;
 }
 
 void MatroskaExtractor::findThumbnails() {

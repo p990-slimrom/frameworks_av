@@ -56,12 +56,14 @@ namespace android {
 static void *loadExtractorPlugin() {
     void *ret = NULL;
     char lib[PROPERTY_VALUE_MAX];
-    if (property_get("media.stagefright.extractor-plugin", lib, "libFFmpegExtractor.so")) {
-        if (void *extractorLib = ::dlopen(lib, RTLD_LAZY)) {
-            ret = ::dlsym(extractorLib, "getExtractorPlugin");
-            ALOGW_IF(!ret, "Failed to find symbol, dlerror: %s", ::dlerror());
-        } else {
-            ALOGV("Failed to load %s, dlerror: %s", lib, ::dlerror());
+    if (property_get("media.sf.extractor-plugin", lib, NULL)) {
+        if (lib != NULL) {
+            if (void *extractorLib = ::dlopen(lib, RTLD_LAZY)) {
+                ret = ::dlsym(extractorLib, "getExtractorPlugin");
+                ALOGW_IF(!ret, "Failed to find symbol, dlerror: %s", ::dlerror());
+            } else {
+                ALOGV("Failed to load %s, dlerror: %s", lib, ::dlerror());
+            }
         }
     }
     return ret;
@@ -163,6 +165,13 @@ bool Sniffer::sniff(
     *confidence = 0.0f;
     meta->clear();
 
+    sp<DecryptHandle> decryptHandle = NULL;
+    char value[PROPERTY_VALUE_MAX];
+    if (property_get("drm.service.enabled", value, NULL)
+            && (!strcmp(value, "1") || !strcasecmp(value, "true"))) {
+         decryptHandle = source->DrmInitialization();
+    }
+
     Mutex::Autolock autoLock(mSnifferMutex);
     for (List<SnifferFunc>::iterator it = mSniffers.begin();
          it != mSniffers.end(); ++it) {
@@ -171,7 +180,16 @@ bool Sniffer::sniff(
         sp<AMessage> newMeta;
         if ((*it)(source, &newMimeType, &newConfidence, &newMeta)) {
             if (newConfidence > *confidence) {
-                *mimeType = newMimeType;
+                if (!strncmp(newMimeType, "drm+es_based+", 13)
+                        || !strncmp(newMimeType, "drm+container_based+", 20)) {
+                    if (!strncmp(mimeType->string(), "", 1) && decryptHandle != NULL) {
+                        *mimeType = newMimeType + decryptHandle->mimeType;
+                    } else {
+                        *mimeType = newMimeType + mimeType->string();
+                    }
+                } else {
+                    *mimeType = newMimeType;
+                }
                 *confidence = newConfidence;
                 *meta = newMeta;
             }

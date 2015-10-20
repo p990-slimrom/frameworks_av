@@ -964,7 +964,11 @@ uint32_t MPEG4Writer::getMpeg4Time() {
     // MP4 file uses time counting seconds since midnight, Jan. 1, 1904
     // while time function returns Unix epoch values which starts
     // at 1970-01-01. Lets add the number of seconds between them
-    uint32_t mpeg4Time = now + (66 * 365 + 17) * (24 * 60 * 60);
+    static const uint32_t delta = (66 * 365 + 17) * (24 * 60 * 60);
+    if (now < 0 || uint32_t(now) > UINT32_MAX - delta) {
+        return 0;
+    }
+    uint32_t mpeg4Time = uint32_t(now) + delta;
     return mpeg4Time;
 }
 
@@ -975,7 +979,7 @@ void MPEG4Writer::writeMvhdBox(int64_t durationUs) {
     writeInt32(now);           // creation time
     writeInt32(now);           // modification time
     writeInt32(mTimeScale / mHFRRatio);    // mvhd timescale
-    int32_t duration = (durationUs * mTimeScale + 5E5) / 1E6;
+    int32_t duration = (durationUs * (mTimeScale / mHFRRatio) + 5E5) / 1E6;
     writeInt32(duration);
     writeInt32(0x10000);       // rate: 1.0
     writeInt16(0x100);         // volume
@@ -2264,10 +2268,14 @@ status_t MPEG4Writer::Track::threadEntry() {
 
         if (mOwner->exceedsFileSizeLimit()) {
             mOwner->notify(MEDIA_RECORDER_EVENT_INFO, MEDIA_RECORDER_INFO_MAX_FILESIZE_REACHED, 0);
+            copy->release();
+            copy = NULL;
             break;
         }
         if (mOwner->exceedsFileDurationLimit()) {
             mOwner->notify(MEDIA_RECORDER_EVENT_INFO, MEDIA_RECORDER_INFO_MAX_DURATION_REACHED, 0);
+            copy->release();
+            copy = NULL;
             break;
         }
 
@@ -2384,6 +2392,8 @@ status_t MPEG4Writer::Track::threadEntry() {
             copy->release();
             err = UNKNOWN_ERROR;
             mSource->notifyError(err);
+            copy->release();
+            copy = NULL;
             return err;
         }
 
