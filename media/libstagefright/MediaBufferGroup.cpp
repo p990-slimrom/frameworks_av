@@ -55,12 +55,12 @@ void MediaBufferGroup::add_buffer(MediaBuffer *buffer) {
     mLastBuffer = buffer;
 }
 
-#ifdef ADD_LEGACY_ACQUIRE_BUFFER_SYMBOL
-extern "C" status_t _ZN7android16MediaBufferGroup14acquire_bufferEPPNS_11MediaBufferE(
-    MediaBufferGroup* group, MediaBuffer **out) {
-    return group->acquire_buffer(out, false);
-}
-#endif
+
+//extern "C" status_t _ZN7android16MediaBufferGroup14acquire_bufferEPPNS_11MediaBufferE(MediaBuffer **out)
+
+    status_t MediaBufferGroup::acquire_buffer( MediaBuffer **out) { return this->acquire_buffer(out, false); }
+
+
 
 status_t MediaBufferGroup::acquire_buffer(
         MediaBuffer **out, bool nonBlocking) {
