@@ -330,7 +330,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
         mAudioTrack = new AudioTrack(
                 AUDIO_STREAM_MUSIC, mSampleRate, AUDIO_FORMAT_PCM_16_BIT, audioMask,
                 0 /*frameCount*/, AUDIO_OUTPUT_FLAG_NONE, &AudioCallback, this,
-                0 /*notificationFrames*/);
+                0 /*notificationFrames*/, AUDIO_SESSION_ALLOCATE, AudioTrack::TRANSFER_DEFAULT, NULL, -1, -1, NULL);
 
         if ((err = mAudioTrack->initCheck()) != OK) {
             mAudioTrack.clear();
