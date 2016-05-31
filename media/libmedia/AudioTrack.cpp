@@ -57,6 +57,21 @@ static int64_t getNowUs()
 }
 
 // static
+
+uint32_t AudioTrack::latency() const { return mLatency; }
+audio_stream_type_t AudioTrack::streamType() const { return mStreamType; }
+audio_format_t AudioTrack::format() const { return mFormat; }
+uint32_t AudioTrack::channelCount() const { return mChannelCount; }
+uint32_t AudioTrack::frameCount() const { return mFrameCount; }
+size_t AudioTrack::frameSize() const { return mFrameSize; }
+status_t AudioTrack::initCheck() const { return mStatus; }
+int AudioTrack::getSessionId() const { return mSessionId; }
+
+extern "C" int _ZNK7android10AudioTrack12getSessionIdEv();
+extern "C" int _ZN7android10AudioTrack12getSessionIdEv() {
+ return _ZNK7android10AudioTrack12getSessionIdEv();
+}
+
 status_t AudioTrack::getMinFrameCount(
         size_t* frameCount,
         audio_stream_type_t streamType,
@@ -116,6 +131,32 @@ status_t AudioTrack::getMinFrameCount(
 }
 
 // ---------------------------------------------------------------------------
+// DEPRECATED
+AudioTrack::AudioTrack(
+ int streamType,
+ uint32_t sampleRate,
+ int format,
+ int channelMask,
+ int frameCount,
+ uint32_t flags,
+ callback_t cbf,
+ void* user,
+ int notificationFrames,
+ int sessionId)
+ : mCblk(NULL),
+ mStatus(NO_INIT),
+ mIsTimed(false),
+ mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
+#ifdef QCOM_HARDWARE
+ ,mAudioFlinger(NULL),
+ mObserver(NULL)
+#endif
+{
+ mStatus = set((audio_stream_type_t)streamType, sampleRate, (audio_format_t)format,
+ (audio_channel_mask_t) channelMask,
+ frameCount, (audio_output_flags_t)flags, cbf, user, notificationFrames,
+ 0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId);
+}
 
 AudioTrack::AudioTrack()
     : mStatus(NO_INIT),
@@ -1210,13 +1251,7 @@ status_t AudioTrack::attachAuxEffect(int effectId)
     return status;
 }
 
-audio_stream_type_t AudioTrack::streamType() const
-{
-    if (mStreamType == AUDIO_STREAM_DEFAULT) {
-        return audio_attributes_to_stream_type(&mAttributes);
-    }
-    return mStreamType;
-}
+
 
 // -------------------------------------------------------------------------
 
@@ -1752,6 +1787,7 @@ void AudioTrack::releaseBuffer(Buffer* audioBuffer)
 
 // -------------------------------------------------------------------------
 
+ssize_t AudioTrack::write(const void* buffer, size_t userSize) { return this->write(buffer, userSize, true); }
 ssize_t AudioTrack::write(const void* buffer, size_t userSize, bool blocking)
 {
 #ifdef QCOM_DIRECTTRACK
